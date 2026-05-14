@@ -1,26 +1,27 @@
 /* ============================================
-   Hermes Plays Pokémon — Dashboard Stylesheet
+   Dulus Plays Pokémon — Dashboard Stylesheet
    Dark cyberpunk command center theme
    ============================================ */
 
 /* CSS Custom Properties */
 :root {
-    --bg-primary: #0d1117;
-    --bg-secondary: #161b22;
-    --bg-tertiary: #1c2128;
-    --bg-panel: #161b22;
-    --border: #30363d;
-    --border-accent: #58a6ff;
+    /* Dulus / Falcon webchat palette — deep purple base + cyan accents */
+    --bg-primary: #0a0a14;
+    --bg-secondary: #14142a;
+    --bg-tertiary: #1d1d3a;
+    --bg-panel: #14142a;
+    --border: #2a2a4a;
+    --border-accent: #8b5cf6;
 
-    --text: #e6edf3;
-    --text-dim: #8b949e;
+    --text: #e8e6ff;
+    --text-dim: #9b97c4;
     --text-bright: #ffffff;
 
-    --accent: #58a6ff;
-    --accent-amber: #f0883e;
-    --accent-green: #7ee787;
-    --accent-red: #f85149;
-    --accent-purple: #bc8cff;
+    --accent: #8b5cf6;        /* Dulus violet */
+    --accent-amber: #fbbf24;
+    --accent-green: #34d399;
+    --accent-red: #f43f5e;
+    --accent-purple: #c084fc;
 
     --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace;
     --font-pixel: 'Press Start 2P', var(--font-mono);

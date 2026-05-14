@@ -1,5 +1,5 @@
 /* ============================================
-   Hermes Plays Pokémon — Dashboard Client
+   Dulus Plays Pokémon — Dashboard Client
    Pure vanilla JS, no frameworks
    ============================================ */
 
@@ -569,7 +569,7 @@
     function init() {
         addBottomCorners();
         setStatus(false, 'Connecting...');
-        addLog('status', 'Hermes Plays Pokémon Dashboard loaded');
+        addLog('status', 'Dulus Plays Pokémon Dashboard loaded');
         addLog('status', 'Connecting to server...');
 
         checkHealth();
