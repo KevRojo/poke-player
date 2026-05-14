@@ -565,6 +565,135 @@
             });
     }
 
+    // --- Manual Controls ---
+    function sendAction(action) {
+        fetch(getBaseURL() + '/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ actions: [action] })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            addLog('action', 'Sent: ' + action);
+            if (data.error) {
+                addLog('error', 'Action failed: ' + data.error);
+            }
+        })
+        .catch(function(err) {
+            addLog('error', 'Failed to send action: ' + err.message);
+        });
+    }
+
+    function setupControls() {
+        // D-Pad and action buttons
+        document.querySelectorAll('[data-action]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var action = btn.getAttribute('data-action');
+                sendAction(action);
+            });
+        });
+
+        // Save state
+        var btnSave = $('btnSaveState');
+        if (btnSave) {
+            btnSave.addEventListener('click', function() {
+                var name = prompt('Save state name:', 'manual_' + timeNow().replace(/:/g, ''));
+                if (!name) return;
+                fetch(getBaseURL() + '/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    addLog('status', 'State saved: ' + name);
+                })
+                .catch(function(err) {
+                    addLog('error', 'Save failed: ' + err.message);
+                });
+            });
+        }
+
+        // Load state
+        var btnLoad = $('btnLoadState');
+        if (btnLoad) {
+            btnLoad.addEventListener('click', function() {
+                fetch(getBaseURL() + '/saves')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var saves = data.saves || [];
+                    if (saves.length === 0) {
+                        addLog('error', 'No save states found');
+                        return;
+                    }
+                    var name = prompt('Load state name:\n' + saves.join('\n'));
+                    if (!name) return;
+                    fetch(getBaseURL() + '/load', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: name })
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        addLog('status', 'State loaded: ' + name);
+                    })
+                    .catch(function(err) {
+                        addLog('error', 'Load failed: ' + err.message);
+                    });
+                })
+                .catch(function(err) {
+                    addLog('error', 'Failed to list saves: ' + err.message);
+                });
+            });
+        }
+
+        // AI Mode toggle
+        var modeToggle = $('modeToggle');
+        if (modeToggle) {
+            modeToggle.addEventListener('change', function() {
+                if (modeToggle.checked) {
+                    addLog('status', 'AI Mode enabled — manual controls disabled');
+                    document.querySelectorAll('.controls-grid button, .controls-extra button').forEach(function(btn) {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                    });
+                } else {
+                    addLog('status', 'AI Mode disabled — manual controls enabled');
+                    document.querySelectorAll('.controls-grid button, .controls-extra button').forEach(function(btn) {
+                        btn.disabled = false;
+                        btn.style.opacity = '1';
+                    });
+                }
+            });
+        }
+
+        // Keyboard controls
+        document.addEventListener('keydown', function(e) {
+            if (modeToggle && modeToggle.checked) return; // AI mode, ignore keyboard
+            
+            var keyMap = {
+                'ArrowUp': 'walk_up',
+                'ArrowDown': 'walk_down',
+                'ArrowLeft': 'walk_left',
+                'ArrowRight': 'walk_right',
+                'w': 'walk_up',
+                's': 'walk_down',
+                'a': 'walk_left',
+                'd': 'walk_right',
+                'z': 'press_a',
+                'x': 'press_b',
+                'Enter': 'press_start',
+                'Shift': 'press_select'
+            };
+            
+            var action = keyMap[e.key];
+            if (action) {
+                e.preventDefault();
+                sendAction(action);
+            }
+        });
+    }
+
     // --- Init ---
     function init() {
         addBottomCorners();
@@ -575,6 +704,7 @@
         checkHealth();
         connectWS();
         startPolling();
+        setupControls();
     }
 
     // Wait for DOM

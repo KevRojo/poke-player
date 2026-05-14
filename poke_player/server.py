@@ -9,6 +9,7 @@ import asyncio
 import base64
 import io
 import json
+import os
 import re
 import time
 from functools import partial
@@ -20,7 +21,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
-__version__ = "0.1.3"
+from poke_player.logging_config import get_logger, get_metrics, log_context, setup_logging
+
+__version__ = "0.2.0"
+logger = get_logger("poke_player.server")
+metrics = get_metrics()
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -55,6 +60,7 @@ _reader = None            # GameMemoryReader subclass instance
 _start_time: float = 0.0
 _loop: Optional[asyncio.AbstractEventLoop] = None
 _emu_lock: Optional[asyncio.Lock] = None  # serialize all emulator access
+_auto_save = None         # AutoSaveManager instance
 
 # WebSocket clients
 _ws_clients: Set[WebSocket] = set()
@@ -84,13 +90,9 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 def _detect_game_type(rom_path: str) -> str:
-    """Pick reader type based on file extension."""
-    ext = Path(rom_path).suffix.lower()
-    if ext in (".gb", ".gbc"):
-        return "red"
-    elif ext == ".gba":
-        return "firered"
-    raise ValueError(f"Unrecognised ROM extension: {ext}")
+    """Detecta el tipo de juego leyendo el header de la ROM."""
+    from poke_player.rom_validator import detect_game_type
+    return detect_game_type(rom_path)
 
 
 def _ensure_emulator():
@@ -236,19 +238,25 @@ def configure(config: GameConfig):
 @app.on_event("startup")
 async def _startup():
     global _emulator, _reader, _start_time, _config, _loop, _emu_lock
+
+    # Configurar logging al inicio
+    setup_logging(
+        level=os.environ.get("POKE_LOG_LEVEL", "INFO"),
+        json_format=os.environ.get("POKE_LOG_JSON", "").lower() == "true",
+    )
+
     _loop = asyncio.get_running_loop()
     _emu_lock = asyncio.Lock()
     _start_time = time.time()
 
     if _config is None:
-        # Config can be injected via environment or set beforehand
-        print("[server] WARNING: No GameConfig set — emulator will NOT start.")
-        print("[server] Call server.configure(GameConfig(...)) before startup.")
+        logger.warning("No GameConfig set — emulator will NOT start.")
+        logger.info("Call server.configure(GameConfig(...)) before startup.")
         return
 
     rom = Path(_config.rom_path).expanduser().resolve()
     if not rom.exists():
-        print(f"[server] ERROR: ROM not found: {rom}")
+        logger.error(f"ROM not found: {rom}")
         return
 
     # Auto-detect game type
@@ -256,8 +264,8 @@ async def _startup():
     if game_type == "auto":
         game_type = _detect_game_type(str(rom))
 
-    print(f"[server] Loading ROM: {rom}")
-    print(f"[server] Detected game type: {game_type}")
+    logger.info(f"Loading ROM: {rom}", extra={"rom": str(rom), "game_type": game_type})
+    logger.info(f"Detected game type: {game_type}")
 
     # Create emulator
     from poke_player.emulator import create_emulator
@@ -302,12 +310,12 @@ async def _startup():
         dash_dir = Path(dashboard_mod.__file__).parent / "static"
         if dash_dir.is_dir():
             app.mount("/dashboard", StaticFiles(directory=str(dash_dir), html=True), name="dashboard")
-            print(f"[server] Dashboard mounted at /dashboard")
+            logger.info("Dashboard mounted at /dashboard")
         else:
-            print("[server] Dashboard module found but no static/ directory")
+            logger.warning("Dashboard module found but no static/ directory")
     except ImportError:
-        print("[server] Dashboard not installed — /dashboard unavailable")
-        print("[server]   Install with: pip install poke-player[dashboard]")
+        logger.warning("Dashboard not installed — /dashboard unavailable")
+        logger.info("Install with: pip install poke-player[dashboard]")
 
     # Auto-load a save state if specified
     if _config.load_state:
@@ -316,24 +324,39 @@ async def _startup():
         if state_path.exists():
             try:
                 _emulator.load_state(str(state_path))
-                print(f"[server] Loaded save state: {_config.load_state}")
+                logger.info(f"Loaded save state: {_config.load_state}")
             except Exception as e:
-                print(f"[server] WARNING: Failed to load state '{_config.load_state}': {e}")
+                logger.warning(f"Failed to load state '{_config.load_state}': {e}")
         else:
-            print(f"[server] WARNING: Save state not found: {state_path}")
+            logger.warning(f"Save state not found: {state_path}")
 
-    print(f"[server] Ready — listening on port {_config.port}")
-    print(f"[server] Endpoints:")
-    print(f"[server]   GET  /          — server info")
-    print(f"[server]   GET  /state     — game state")
-    print(f"[server]   GET  /screenshot — current frame (PNG)")
-    print(f"[server]   POST /action    — execute actions")
-    print(f"[server]   POST /save      — save state")
-    print(f"[server]   POST /load      — load state")
-    print(f"[server]   GET  /saves     — list saves")
-    print(f"[server]   GET  /minimap   — ASCII minimap")
-    print(f"[server]   GET  /health    — health check")
-    print(f"[server]   WS   /ws        — live events")
+    # Initialize auto-save manager
+    global _auto_save
+    try:
+        from poke_player.auto_save import AutoSaveManager, AutoSaveConfig
+        auto_save_config = AutoSaveConfig(
+            enabled=os.environ.get("POKE_AUTOSAVE", "true").lower() == "true",
+            interval_seconds=int(os.environ.get("POKE_AUTOSAVE_INTERVAL", "300")),
+            save_before_battle=True,
+            save_on_new_map=True,
+            max_auto_saves=10,
+        )
+        _auto_save = AutoSaveManager(_emulator, auto_save_config, saves_dir=data_dir / "saves")
+        _auto_save.start()
+    except Exception as e:
+        logger.warning(f"Auto-save initialization failed: {e}")
+
+    logger.info(f"Ready — listening on port {_config.port}", extra={"port": _config.port})
+    logger.info("Endpoints available: /, /state, /screenshot, /action, /save, /load, /saves, /minimap, /health, /ws")
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    """Clean up on server shutdown."""
+    global _auto_save
+    if _auto_save:
+        _auto_save.stop()
+        logger.info("Auto-save manager stopped")
 
 
 # ---------------------------------------------------------------------------
@@ -359,14 +382,41 @@ async def health():
     return {"status": "ok", "emulator_ready": _emulator is not None}
 
 
+@app.get("/rom/validate")
+async def validate_rom_endpoint(rom_path: str):
+    """Valida una ROM y retorna información detallada."""
+    from poke_player.rom_validator import validate_rom
+    try:
+        info = validate_rom(rom_path)
+        return {
+            "valid": info.is_valid,
+            "game": info.game_title.value,
+            "platform": info.platform.name,
+            "header_title": info.header_title,
+            "header_code": info.header_code,
+            "size": info.size,
+            "game_type": info.game_type,
+            "header_checksum_valid": info.header_checksum_valid,
+            "global_checksum_valid": info.global_checksum_valid,
+            "errors": info.errors,
+            "warnings": info.warnings,
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.get("/state")
 async def get_state():
     """Full game state JSON."""
     _ensure_emulator()
     try:
-        state = await _run_sync(_get_state_dict)
+        with metrics.timer("state_read"):
+            state = await _run_sync(_get_state_dict)
         return JSONResponse(content=state)
     except Exception as e:
+        logger.error(f"Error reading state: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error reading state: {e}")
 
 
@@ -375,9 +425,12 @@ async def screenshot():
     """Current emulator frame as PNG image."""
     _ensure_emulator()
     try:
-        png_bytes = await _run_sync(_get_screenshot_bytes)
+        with metrics.timer("screenshot"):
+            png_bytes = await _run_sync(_get_screenshot_bytes)
+        metrics.increment("screenshots_total")
         return Response(content=png_bytes, media_type="image/png")
     except Exception as e:
+        logger.error(f"Screenshot error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Screenshot error: {e}")
 
 
@@ -397,18 +450,22 @@ async def screenshot_base64():
 async def execute_actions(req: ActionRequest):
     """Execute a sequence of game actions."""
     _ensure_emulator()
-    try:
-        executed = 0
-        for idx, action_str in enumerate(req.actions):
-            if idx > 0:
-                # Forced cooldown between actions — without it, pyboy's
-                # sound buffer / internal state can corrupt under back-to-back
-                # presses and crash the interpreter.
-                await asyncio.sleep(5.0)
-            await _execute_action(action_str)
-            executed += 1
+    logger.info(f"Executing actions: {req.actions}", extra={"actions": req.actions})
+    metrics.increment("actions_total", len(req.actions))
 
-        state_after = await _run_sync(_get_state_dict)
+    try:
+        with metrics.timer("action_execution"):
+            executed = 0
+            for idx, action_str in enumerate(req.actions):
+                if idx > 0:
+                    # Forced cooldown between actions — without it, pyboy's
+                    # sound buffer / internal state can corrupt under back-to-back
+                    # presses and crash the interpreter.
+                    await asyncio.sleep(5.0)
+                await _execute_action(action_str)
+                executed += 1
+
+            state_after = await _run_sync(_get_state_dict)
 
         # Grab a screenshot for the live dashboard
         try:
@@ -431,14 +488,17 @@ async def execute_actions(req: ActionRequest):
                 "data": {"image": screenshot_b64, "format": "png"},
             })
 
+        logger.info(f"Actions completed: {executed}/{len(req.actions)}")
         return {
             "success": True,
             "actions_executed": executed,
             "state_after": state_after,
         }
     except ValueError as e:
+        logger.warning(f"Action validation error: {e}", extra={"actions": req.actions})
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Action execution error: {e}", extra={"actions": req.actions}, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Action error: {e}")
 
 
@@ -530,6 +590,33 @@ async def minimap():
         return Response(content=text, media_type="text/plain")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Minimap error: {e}")
+
+
+@app.get("/autosave/status")
+async def autosave_status():
+    """Get auto-save manager status."""
+    if _auto_save is None:
+        return {"enabled": False, "reason": "not_initialized"}
+    return {
+        "enabled": _auto_save.config.enabled,
+        "last_save_time": _auto_save._last_save_time,
+        "interval_seconds": _auto_save.config.interval_seconds,
+        "max_auto_saves": _auto_save.config.max_auto_saves,
+        "save_before_battle": _auto_save.config.save_before_battle,
+        "save_on_new_map": _auto_save.config.save_on_new_map,
+    }
+
+
+@app.post("/autosave/trigger")
+async def autosave_trigger():
+    """Manually trigger an auto-save."""
+    if _auto_save is None:
+        raise HTTPException(status_code=503, detail="Auto-save not initialized")
+    try:
+        await _auto_save._do_save("manual")
+        return {"success": True, "message": "Auto-save triggered"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Auto-save failed: {e}")
 
 
 # ---------------------------------------------------------------------------

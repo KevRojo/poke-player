@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dulus Plays Pokémon</title>
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=4">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
 </head>
 <body>
@@ -98,6 +98,43 @@
                 </div>
             </div>
 
+            <!-- Manual Controls -->
+            <div class="controls-section">
+                <div class="panel-header">
+                    <span class="panel-icon">🎮</span>
+                    <span class="panel-title">Manual Controls</span>
+                    <label class="mode-toggle">
+                        <input type="checkbox" id="modeToggle">
+                        <span class="toggle-label">AI Mode</span>
+                    </label>
+                </div>
+                <div class="controls-grid">
+                    <!-- D-Pad -->
+                    <div class="dpad">
+                        <button class="btn-dpad btn-up" data-action="walk_up" title="Walk Up">▲</button>
+                        <button class="btn-dpad btn-left" data-action="walk_left" title="Walk Left">◀</button>
+                        <button class="btn-dpad btn-center"></button>
+                        <button class="btn-dpad btn-right" data-action="walk_right" title="Walk Right">▶</button>
+                        <button class="btn-dpad btn-down" data-action="walk_down" title="Walk Down">▼</button>
+                    </div>
+                    <!-- Action Buttons -->
+                    <div class="action-buttons">
+                        <button class="btn-action btn-a" data-action="press_a" title="A Button">A</button>
+                        <button class="btn-action btn-b" data-action="press_b" title="B Button">B</button>
+                    </div>
+                    <!-- System Buttons -->
+                    <div class="system-buttons">
+                        <button class="btn-system" data-action="press_start" title="Start">START</button>
+                        <button class="btn-system" data-action="press_select" title="Select">SELECT</button>
+                    </div>
+                </div>
+                <div class="controls-extra">
+                    <button class="btn-extra" data-action="a_until_dialog_end" title="Spam A until dialog ends">A Spam</button>
+                    <button class="btn-extra btn-save" id="btnSaveState" title="Save State">💾 Save</button>
+                    <button class="btn-extra btn-load" id="btnLoadState" title="Load State">📂 Load</button>
+                </div>
+            </div>
+
             <!-- Battle Info (hidden when not in battle) -->
             <div class="battle-info hidden" id="battleInfo">
                 <div class="panel-header">
@@ -151,6 +188,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=4"></script>
 </body>
 </html>

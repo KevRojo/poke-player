@@ -11,3 +11,4 @@ dist/
 *.gba
 *.state
 .pokemon-agent/
+.dulus-context/

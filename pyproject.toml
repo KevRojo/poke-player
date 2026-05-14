@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "poke-player"
-version = "0.1.3"
+version = "0.2.0"
 description = "AI-powered Pokemon gameplay agent with headless emulation, REST API, and live dashboard."
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -37,6 +37,7 @@ dependencies = [
 pyboy = ["pyboy>=2.0.0"]
 pygba = ["pygba>=0.1.0"]
 dashboard = ["aiofiles>=23.0.0"]
+dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0", "httpx>=0.25.0"]
 all = ["poke-player[pyboy,dashboard]"]
 
 [project.urls]
@@ -52,3 +53,13 @@ include = ["poke_player*"]
 
 [tool.setuptools.package-data]
 "poke_player.dashboard" = ["static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
