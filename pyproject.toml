@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "poke-player"
-version = "0.1.0"
+version = "0.1.1"
 description = "AI-powered Pokemon gameplay agent with headless emulation, REST API, and live dashboard."
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -30,6 +30,7 @@ dependencies = [
     "uvicorn[standard]>=0.24.0",
     "Pillow>=10.0.0",
     "pydantic>=2.0.0",
+    "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]
