@@ -24,7 +24,7 @@ import json
 import sys
 from pathlib import Path
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 BANNER = r"""
   ____            _              ____  _
@@ -253,8 +253,40 @@ def main():
     p.add_argument("--verbose", "-v", action="store_true", help="Return the full raw state JSON")
 
     # --- action ---
-    p = sub.add_parser("action", help="Press button(s). Friendly shortcuts ('a','up,up,a') or native verbs ('press_a','walk_up','wait_60','a_until_dialog_end').")
-    p.add_argument("buttons", help="Button or comma-separated sequence")
+    action_epilog = (
+        "Friendly shortcuts (auto-normalised to native verbs):\n"
+        "  a, b, start, select         -> press_a / press_b / press_start / press_select\n"
+        "  up, down, left, right       -> walk_up / walk_down / walk_left / walk_right\n"
+        "  comma-separated sequence    -> e.g. 'up,up,a'  or  'a,a,a'\n"
+        "\n"
+        "Native verbs (passed through as-is):\n"
+        "  press_<btn>                 short tap (8f hold + 12f wait)\n"
+        "  walk_<dir>                  movement-tuned timing for Gen 1\n"
+        "  hold_<btn>_<N>              hold button for N frames\n"
+        "  wait_<N>                    tick N frames with no input\n"
+        "  a_until_dialog_end          mash A until the dialog box closes\n"
+        "\n"
+        "Examples:\n"
+        "  poke-player action a                   # press A once\n"
+        "  poke-player action up,up,a             # walk up twice then press A\n"
+        "  poke-player action press_start         # explicit native form\n"
+        "  poke-player action hold_a_60           # hold A for 60 frames\n"
+    )
+    p = sub.add_parser(
+        "action",
+        help="Press button(s). Use 'a','b','up,up,a' or native verbs.",
+        description="Send one or more button actions to the running emulator.",
+        epilog=action_epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument(
+        "buttons",
+        help=(
+            "Button or comma-separated sequence. Shortcuts: a,b,start,select,"
+            "up,down,left,right. Native verbs: press_a, walk_up, hold_a_60, "
+            "wait_30, a_until_dialog_end. See `poke-player action -h` for examples."
+        ),
+    )
 
     # --- save ---
     p = sub.add_parser("save", help="Save the current game state to a named slot.")

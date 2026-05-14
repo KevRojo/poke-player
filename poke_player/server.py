@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -112,12 +112,16 @@ async def _run_sync(func, *args):
 
 
 async def broadcast(event: dict):
-    """Send a JSON event to every connected WebSocket client."""
+    """Send a JSON event to every connected WebSocket client.
+
+    Each send is wrapped in a 1s timeout so a half-open / stalled client
+    can't block the /action handler that called us.
+    """
     dead: list[WebSocket] = []
     payload = json.dumps(event)
     for ws in _ws_clients:
         try:
-            await ws.send_text(payload)
+            await asyncio.wait_for(ws.send_text(payload), timeout=1.0)
         except Exception:
             dead.append(ws)
     for ws in dead:
