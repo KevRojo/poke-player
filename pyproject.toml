@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "poke-player"
+version = "0.1.0"
+description = "AI-powered Pokemon gameplay agent with headless emulation, REST API, and live dashboard."
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "KevRojo", email = "meikerrd@gmail.com"},
+]
+keywords = ["pokemon", "ai", "agent", "emulator", "gameboy", "gba", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "Pillow>=10.0.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+pyboy = ["pyboy>=2.0.0"]
+pygba = ["pygba>=0.1.0"]
+dashboard = ["aiofiles>=23.0.0"]
+all = ["poke-player[pyboy,dashboard]"]
+
+[project.urls]
+Homepage = "https://github.com/KevRojo/poke-player"
+Repository = "https://github.com/KevRojo/poke-player"
+Issues = "https://github.com/KevRojo/poke-player/issues"
+
+[project.scripts]
+poke-player = "poke_player.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["poke_player*"]
+
+[tool.setuptools.package-data]
+"poke_player.dashboard" = ["static/**/*"]
