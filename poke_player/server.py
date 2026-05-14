@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -54,6 +54,7 @@ _emulator = None          # Emulator instance
 _reader = None            # GameMemoryReader subclass instance
 _start_time: float = 0.0
 _loop: Optional[asyncio.AbstractEventLoop] = None
+_emu_lock: Optional[asyncio.Lock] = None  # serialize all emulator access
 
 # WebSocket clients
 _ws_clients: Set[WebSocket] = set()
@@ -99,9 +100,15 @@ def _ensure_emulator():
 
 
 async def _run_sync(func, *args):
-    """Run a blocking emulator call in the default executor."""
+    """Run a blocking emulator call in the default executor, serialised
+    by ``_emu_lock`` so the background frame ticker and request handlers
+    never reach into PyBoy at the same time (PyBoy is not thread-safe —
+    concurrent ticks cause hangs and sound-buffer corruption)."""
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, partial(func, *args))
+    if _emu_lock is None:
+        return await loop.run_in_executor(None, partial(func, *args))
+    async with _emu_lock:
+        return await loop.run_in_executor(None, partial(func, *args))
 
 
 async def broadcast(event: dict):
@@ -224,8 +231,9 @@ def configure(config: GameConfig):
 
 @app.on_event("startup")
 async def _startup():
-    global _emulator, _reader, _start_time, _config, _loop
+    global _emulator, _reader, _start_time, _config, _loop, _emu_lock
     _loop = asyncio.get_running_loop()
+    _emu_lock = asyncio.Lock()
     _start_time = time.time()
 
     if _config is None:
@@ -273,11 +281,10 @@ async def _startup():
         while True:
             try:
                 if _emulator is not None:
-                    # Tick a small batch off the asyncio thread so we don't
-                    # block the event loop on long emulator stalls.
-                    await _aio.get_running_loop().run_in_executor(
-                        None, _emulator.tick, 4
-                    )
+                    # Go through _run_sync so we acquire _emu_lock — otherwise
+                    # this races with /action handlers in another executor
+                    # thread and pyboy hangs.
+                    await _run_sync(_emulator.tick, 4)
             except Exception:
                 pass
             # 4 frames @ ~60Hz target ≈ 67ms cycle
@@ -388,7 +395,12 @@ async def execute_actions(req: ActionRequest):
     _ensure_emulator()
     try:
         executed = 0
-        for action_str in req.actions:
+        for idx, action_str in enumerate(req.actions):
+            if idx > 0:
+                # Forced cooldown between actions — without it, pyboy's
+                # sound buffer / internal state can corrupt under back-to-back
+                # presses and crash the interpreter.
+                await asyncio.sleep(5.0)
             await _execute_action(action_str)
             executed += 1
 

@@ -24,7 +24,7 @@ import json
 import sys
 from pathlib import Path
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 BANNER = r"""
   ____            _              ____  _
@@ -106,7 +106,7 @@ def _http_get(url: str, path: str, timeout: float = 5.0):
     return requests.get(f"{url}{path}", timeout=timeout)
 
 
-def _http_post(url: str, path: str, payload: dict | None = None, timeout: float = 10.0):
+def _http_post(url: str, path: str, payload: dict | None = None, timeout: float = 60.0):
     import requests
     return requests.post(f"{url}{path}", json=payload or {}, timeout=timeout)
 

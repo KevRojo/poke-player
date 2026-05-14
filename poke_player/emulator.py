@@ -143,11 +143,11 @@ class PyBoyEmulator(Emulator):
         if not os.path.isfile(rom_path):
             raise FileNotFoundError(f"ROM not found: {rom_path}")
 
-        self._pyboy = PyBoy(rom_path, window="null")
-        try:
-            self._pyboy.set_emulation_speed(0)  # 0 = unlimited
-        except Exception:
-            pass
+        self._pyboy = PyBoy(rom_path, window="null", sound_emulated=False, sound_volume=0)
+        # NOTE: do NOT use set_emulation_speed(0) — even with sound_emulated=False,
+        # unlimited speed makes pyboy's internal sound buffer overrun and crash
+        # the process. The background frame-ticker in server.py already paces
+        # frames; we run at native 60fps which is plenty.
         self.rom_path = rom_path
         self.frame_count = 0
 
