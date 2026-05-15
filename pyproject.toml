@@ -4,8 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "poke-player"
-version = "0.2.0"
+version = "0.2.1"
 description = "AI-powered Pokemon gameplay agent with headless emulation, REST API, and live dashboard."
+readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [

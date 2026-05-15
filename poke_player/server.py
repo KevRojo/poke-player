@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 from poke_player.logging_config import get_logger, get_metrics, log_context, setup_logging
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 logger = get_logger("poke_player.server")
 metrics = get_metrics()
 

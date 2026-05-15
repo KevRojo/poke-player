@@ -24,7 +24,7 @@ import json
 import sys
 from pathlib import Path
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 BANNER = r"""
   ____            _              ____  _
